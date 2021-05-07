@@ -5,6 +5,7 @@ import "time"
 // Service is a Translator user.
 type Service struct {
 	translator Translator
+	busy       bool
 }
 
 func NewService() *Service {
