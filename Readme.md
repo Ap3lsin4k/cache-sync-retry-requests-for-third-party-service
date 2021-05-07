@@ -23,13 +23,16 @@ We know that translation service calls:
 * sometimes fails
 * costs us money
 
-Also translations known to change sometimes but business approved caching them for at least N hours.
+**TODO: Also translations known to change sometimes but business approved caching them for at least N hours.**
 
 ## Task
 
 Implement solution that will properly handle external translation service
 1. retry requests N times with exponential back off before failing with an error
+    1. *DONE: maximum back off must not be greater than 15 minutes*
 2. cache request results for in the storage to avoid charges for the same queries (use simplest inmemory storage)
+   1. *TODO: it can be general for any service, and act as plugin, not only Translate*
+   2. *TODO: apply Dependency injection as Repository class*
 3. deduplicate simultaneous queries for the same parameters to avoid charges for same query burst
 
 Cover new functionality with tests.
@@ -37,3 +40,5 @@ Cover new functionality with tests.
 ## Source code
 
 translator.go and main.go should not be modified. Please use service.go and any new files for the solution.
+
+call Cache Service Translate and 
