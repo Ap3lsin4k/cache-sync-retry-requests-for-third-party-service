@@ -4,6 +4,9 @@ import (
     "context"
     "fmt"
     "golang.org/x/text/language"
+    "io/ioutil"
+    "log"
+    "os"
     "sync"
     "testing"
     "time"
@@ -19,7 +22,7 @@ func NewStubService() *Service {
 
     return &Service{
         translator: t,
-        cache: map[CacheKey]string{},
+        cache: map[RequestModel]string{},
         translatingInProgress: make(setOfRequestModel),
     }
 }
@@ -34,7 +37,7 @@ func NewServiceNotFailingTranslator() *Service {
 
     return &Service{
         translator: t,
-        cache: map[CacheKey]string{},
+        cache: map[RequestModel]string{},
         translatingInProgress: make(setOfRequestModel),
     }
 }
@@ -46,14 +49,17 @@ func TestDeduplicateForSame(t *testing.T) {
 func TestWhiteboxServiceKnowsThatTranslationServiceIsExecuting(t *testing.T) {
     ctx := context.Background()
     service := NewStubService()
+    log.SetOutput(ioutil.Discard)
+    defer log.SetOutput(os.Stderr)
 
-    howTranslate := CacheKey{
+
+    howTranslate := RequestModel{
         language.English,
         language.Japanese,
         "Do you promise?",
     }
 
-    useCase2 := CacheKey{
+    useCase2 := RequestModel{
         from:       language.Ukrainian,
         to:         language.English,
         fromPhrase: "Тарас Шевченко",
@@ -106,13 +112,16 @@ func TestNotDedublicateSimultaneousQueriesForDifferentParameters(t *testing.T) {
 
     ctx := context.Background()
     s := NewServiceNotFailingTranslator()
+    log.SetOutput(ioutil.Discard)
+    defer log.SetOutput(os.Stderr)
+//  TODO Implement Logger in Base class as cross cutting concern: Aspect-oriented programming
 
-    useCase1 := CacheKey{
+    useCase1 := RequestModel{
         from:       language.English,
         to:         language.Japanese,
         fromPhrase: "same words",
     }
-    useCase2 := CacheKey{
+    useCase2 := RequestModel{
         from:       language.English,
         to:         language.Chinese,
         fromPhrase: "same words",

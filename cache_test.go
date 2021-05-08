@@ -30,7 +30,7 @@ func NewDummyService() *Service {
 
 	return &Service{
 		translator: t,
-		cache: make(map[CacheKey]string),
+		cache: make(map[RequestModel]string),
 	}
 }
 
@@ -43,7 +43,7 @@ func TestCacheWhenCallingTwoTimes(t *testing.T){
 		t.Errorf("Expect `TranslateCount` to be zero by default")
 	}
 
-	useCase1 := CacheKey{
+	useCase1 := RequestModel{
 		from:       language.English,
 		to:         language.Japanese,
 		fromPhrase: "same words",
@@ -74,18 +74,18 @@ func TestNotUsingCacheWhenInputDiffers(t *testing.T) {
 		t.Errorf("Expect `TranslateCount` to be zero by default")
 	}
 
-	useCase1 := CacheKey{
+	useCase1 := RequestModel{
 		from:       language.English,
 		to:         language.Armenian,
 		fromPhrase: "apple",
 	}
 
-	useCase2 := CacheKey{
+	useCase2 := RequestModel{
 		from:       language.English,
 		to:         language.Armenian,
 		fromPhrase: "banana",
 	}
-	useCase3 := CacheKey{
+	useCase3 := RequestModel{
 		from:       language.English,
 		to:         language.Polish,
 		fromPhrase: "horse",
