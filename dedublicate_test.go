@@ -12,21 +12,6 @@ import (
     "time"
 )
 
-func NewStubService() *Service {
-    t := newRandomTranslator(
-        100*time.Millisecond,
-        500*time.Millisecond,
-        0.1,
-    )
-
-
-    return &Service{
-        translator: t,
-        cache: map[RequestModel]string{},
-        translatingInProgress: make(setOfRequestModel),
-    }
-}
-
 func NewServiceNotFailingTranslator() *Service {
     t := newRandomTranslator(
         100*time.Millisecond,
@@ -35,6 +20,10 @@ func NewServiceNotFailingTranslator() *Service {
     )
 
 
+    return NewServiceFrom(t)
+}
+
+func NewServiceFrom(t Translator) *Service{
     return &Service{
         translator: t,
         cache: map[RequestModel]string{},
@@ -43,15 +32,115 @@ func NewServiceNotFailingTranslator() *Service {
 }
 
 
+func newServiceWithFailingTranslator() *Service {
+    t := newRandomTranslator(
+        100*time.Millisecond,
+        500*time.Millisecond,
+        1,
+    )
 
-func TestDeduplicateForSame(t *testing.T) {
+    return &Service{
+        translator: t,
+        cache: map[RequestModel]string{},
+        translatingInProgress: make(setOfRequestModel),
+    }
+
 }
-func TestWhiteboxServiceKnowsThatTranslationServiceIsExecuting(t *testing.T) {
+
+
+
+func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorForOneButNoErrorForTheOther(t *testing.T) {
     ctx := context.Background()
-    service := NewStubService()
+    commonCache := map[RequestModel]string{}
+
+    stubTranslator := newRandomTranslator(
+        100*time.Millisecond,
+        500*time.Millisecond,
+        0,
+    )
+
+    failingTr := newRandomTranslator(
+        100*time.Millisecond,
+        500*time.Millisecond,
+        1,
+    )
+    commonTranslationsInProgress := make(setOfRequestModel)
+
+    service2 := &Service{
+        translator: stubTranslator,
+        cache: commonCache,
+        translatingInProgress: commonTranslationsInProgress,
+    }
+
+
+
+    failingService := &Service{
+        translator: failingTr,
+        cache: commonCache,
+        translatingInProgress: commonTranslationsInProgress,
+    }
+    failingService.cache = service2.cache
+    if service2.translator.(*randomTranslator).errorProb !=0 {
+        t.Errorf("Expect error prob 0, but got %f", service2.translator.(randomTranslator).errorProb)
+
+    }
+
+   // log.SetOutput(ioutil.Discard)
+    defer log.SetOutput(os.Stderr)
+
+
+    requestModel := RequestModel{
+        language.Polish,
+        language.Japanese,
+        "Dzien dobry",
+    }
+    ctx1 := context.WithValue(ctx, "whereami", "goroutine1")
+    ctx2 := context.WithValue(ctx, "whereami", "goroutine2")
+
+
+    var result1, result2 string
+    var err1, err2 error
+
+    var wg sync.WaitGroup
+    var wgGlobal sync.WaitGroup
+    wg.Add(1)
+    go func() {
+        log.Println("FailingService is the first service to run")
+        wg.Done()
+        wgGlobal.Add(1)
+        result1, err1 = failingService.TranslatePromise(ctx1, requestModel)
+        wgGlobal.Done()
+    }()
+    wg.Wait()
+    wgGlobal.Add(1)
+    // failingService must be the first service2 to run
+    go func() {
+        log.Println("service2 is sequentially the second service to run")
+        result2, err2 = service2.TranslatePromise(ctx2, requestModel)
+        wgGlobal.Done()
+    }()
+
+    wgGlobal.Wait()
+    if err1 == nil {
+        t.Errorf("test setup error: expect First service to fail and result1 to be \"\", but got result1: %v", result1)
+    }
+
+    if result2 == "" || err2 != nil {
+        t.Errorf("Expect result2 not to be empty, service2 must succeed after waiting for failing service to run its own `Translate`" +
+            "result2: \"%s\" err2: \"%v\"", result2, err2)
+
+    }
+}
+
+
+func TestDeduplicateServiceWhenTranslationServiceIsStable(t *testing.T) {
+    ctx := context.Background()
+    service := NewServiceNotFailingTranslator()
     log.SetOutput(ioutil.Discard)
     defer log.SetOutput(os.Stderr)
 
+    ctx1 := context.WithValue(ctx, "whereami", "goroutine1")
+    ctx2 := context.WithValue(ctx, "whereami", "goroutine2")
 
     howTranslate := RequestModel{
         language.English,
@@ -59,37 +148,26 @@ func TestWhiteboxServiceKnowsThatTranslationServiceIsExecuting(t *testing.T) {
         "Do you promise?",
     }
 
-    useCase2 := RequestModel{
-        from:       language.Ukrainian,
-        to:         language.English,
-        fromPhrase: "Тарас Шевченко",
-    }
-
 
     t.Run("blackbox call simulatiously with same parameters", func(t *testing.T) {
         if service.BusyWith(howTranslate) {
             t.Errorf("Expect BusyWith(%v) be false by default", howTranslate)
-        }
-        if service.BusyWith(useCase2) {
-            t.Errorf("Expect BusyWith(%v) be false by default", useCase2)
         }
 
         var wg sync.WaitGroup
         wg.Add(1)
         var result1, result2 string
         go func() {
-            ctx1 := context.WithValue(ctx, "whereami", "goroutine1")
             result1, _ = service.TranslatePromise(ctx1, howTranslate)
             wg.Done()
         }()
 
         wg.Add(1)
         go func() {
-            ctx2 := context.WithValue(ctx, "whereami", "goroutine2")
             result2, _ = service.TranslatePromise(ctx2, howTranslate)
             wg.Done()
         }()
-        time.Sleep(100 * time.Millisecond)
+        time.Sleep(5 * time.Millisecond)
         if !service.BusyWith(howTranslate) {
             t.Errorf("Expect inProgress to be true while executing Translation(%v)"+
                 "try increasing time.Sleep delay before checking", howTranslate)
@@ -159,3 +237,6 @@ func TestNotDedublicateSimultaneousQueriesForDifferentParameters(t *testing.T) {
         t.Errorf("Expect output to differ, but got %s==%s", result1, result2)
     }
 }
+
+func TestDedublicateWhenRequestModelIsDifferentObjectButSameParametersInsideDeeply(t *testing.T) {}
+func TestTwoServicesFailes(t *testing.T) {}

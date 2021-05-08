@@ -3,6 +3,7 @@ package main
 
 import (
 	"golang.org/x/text/language"
+	"sync"
 	"time"
 )
 
@@ -24,9 +25,9 @@ type Service struct {
 	// dedublicate service
 	busy                  bool
 	translatingInProgress setOfRequestModel
+	mutex       sync.Mutex
 }
 
-// TODO get cache after cache was saved
 
 func NewService() *Service {
 	t := newRandomTranslator(

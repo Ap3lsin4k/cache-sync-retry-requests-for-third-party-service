@@ -7,32 +7,29 @@ import (
 
 func (s *Service) CacheTranslate(what RequestModel) (string, error) {
 
-	if s.isCached(what) {
-		return s.getCachedUnchecked(what)
-	}
-
-	return s.translateAndSaveCache(what)
-}
-
-/*
-func (s *Service) CacheTranslate(what RequestModel) (string, error) {
-
 	value, ok := s.getCachedSafe(what)
 
 	if ok {
-		return value
+		return value, nil
 	}
 
 	return s.translateAndSaveCache(what)
 }
-*/
+
+// TODO refactor use Golang like style to work with Cache
 
 func (s Service) isCached(that RequestModel) bool {
 	_, ok := s.cache[that]
 	return ok
 }
 
-func (s *Service) getCachedUnchecked(that RequestModel) (string, error) {
+func (s *Service) getCachedSafe(what RequestModel) (string, bool) {
+	val, ok := s.cache[what]
+	return val, ok
+}
+
+
+func (s *Service) deprecatedGetCachedUnchecked(that RequestModel) (string, error) {
 	val, _ := s.cache[that]
 	return val, nil
 }
