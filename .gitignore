@@ -1,1 +1,4 @@
 .idea/
+developer/
+info.log
+app.go

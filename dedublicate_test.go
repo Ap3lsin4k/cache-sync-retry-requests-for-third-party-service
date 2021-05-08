@@ -19,6 +19,8 @@ func NewStubService() *Service {
 
     return &Service{
         translator: t,
+        cache: map[CacheKey]string{},
+        translatingInProgress: make(setOfRequestModel),
     }
 }
 
@@ -32,6 +34,8 @@ func NewServiceNotFailingTranslator() *Service {
 
     return &Service{
         translator: t,
+        cache: map[CacheKey]string{},
+        translatingInProgress: make(setOfRequestModel),
     }
 }
 
@@ -65,17 +69,21 @@ func TestWhiteboxServiceKnowsThatTranslationServiceIsExecuting(t *testing.T) {
         }
 
         var wg sync.WaitGroup
-        wg.Add(2)
+        wg.Add(1)
         var result1, result2 string
         go func() {
-            result1, _ = service.TranslatePromise(ctx, howTranslate)
+            ctx1 := context.WithValue(ctx, "whereami", "goroutine1")
+            result1, _ = service.TranslatePromise(ctx1, howTranslate)
             wg.Done()
         }()
+
+        wg.Add(1)
         go func() {
-            result2, _ = service.TranslatePromise(ctx, howTranslate)
+            ctx2 := context.WithValue(ctx, "whereami", "goroutine2")
+            result2, _ = service.TranslatePromise(ctx2, howTranslate)
             wg.Done()
         }()
-        time.Sleep(10 * time.Millisecond)
+        time.Sleep(100 * time.Millisecond)
         if !service.BusyWith(howTranslate) {
             t.Errorf("Expect inProgress to be true while executing Translation(%v)"+
                 "try increasing time.Sleep delay before checking", howTranslate)
@@ -90,6 +98,7 @@ func TestWhiteboxServiceKnowsThatTranslationServiceIsExecuting(t *testing.T) {
             t.Errorf("Expect results to be the same, but got result1 \"%s\" != result2 \"%s\"",
                 result1, result2)
         }
+
     })
 }
 
