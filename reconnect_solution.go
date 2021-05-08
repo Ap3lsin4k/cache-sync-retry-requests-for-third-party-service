@@ -20,7 +20,7 @@ func TryTranslate(translate func() (string, error), delayBeforeReconnecting func
 				return "", backOffErr
 			}
 
-			fmt.Printf("%s. Connecting again in %d seconds...\n", err, backOff/time.Second)
+			// todo logger: fmt.Printf("%s. Connecting again in %d seconds...\n", err, backOff/time.Second)
 			time.Sleep(backOff)
 			attempts++
 		} else {

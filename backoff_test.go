@@ -100,7 +100,6 @@ func TestNextDelayBeforeConnectingIsHigher(t *testing.T) {
 	s := NewDService()
 
 	translate :=  f(s)
-	fmt.Println("<")
 
 	delayBeforeReconnecting := func (uint8) (time.Duration, error) {
 		return 100*time.Millisecond, nil

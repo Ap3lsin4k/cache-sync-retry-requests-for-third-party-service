@@ -30,6 +30,7 @@ func NewDummyService() *Service {
 
 	return &Service{
 		translator: t,
+		cache: make(map[CacheKey]string),
 	}
 }
 
@@ -41,21 +42,74 @@ func TestCacheWhenCallingTwoTimes(t *testing.T){
 	if spy.TranslateCount != 0 {
 		t.Errorf("Expect `TranslateCount` to be zero by default")
 	}
-	s.CacheTranslate(language.English, language.Japanese, "same words")
+
+	useCase1 := CacheKey{
+		from:       language.English,
+		to:         language.Japanese,
+		fromPhrase: "same words",
+	}
+
+
+	_, _ = s.CacheTranslate(useCase1)
+	if !s.isCached(useCase1) {
+		t.Errorf("Must cache %v", useCase1)
+	}
 
 	if spy.TranslateCount != 1 {
 		t.Errorf("Expect `Translate` to be called")
 	}
 
-	s.CacheTranslate(language.English, language.Japanese, "same words")
+	_, _ = s.CacheTranslate(useCase1)
 
 	if spy.TranslateCount != 1 {
 		t.Errorf("`Translate` must be called once when ServiceTranslate is called twice")
 	}
 }
 
-func TestCacheWhenCalledWithDifferentInputs(t *testing.T) {
+func TestNotUsingCacheWhenInputDiffers(t *testing.T) {
+	s := NewDummyService()
+	remoteTranslateCount := &(s.translator.(*translatorCacheSpy)).TranslateCount
 
+	if *remoteTranslateCount != 0 {
+		t.Errorf("Expect `TranslateCount` to be zero by default")
+	}
+
+	useCase1 := CacheKey{
+		from:       language.English,
+		to:         language.Armenian,
+		fromPhrase: "apple",
+	}
+
+	useCase2 := CacheKey{
+		from:       language.English,
+		to:         language.Armenian,
+		fromPhrase: "banana",
+	}
+	useCase3 := CacheKey{
+		from:       language.English,
+		to:         language.Polish,
+		fromPhrase: "horse",
+	}
+
+	_, _ = s.CacheTranslate(useCase1)
+
+	if *remoteTranslateCount != 1 {
+		t.Errorf("Expect `TranslateCount` to be 1, input:%v", useCase1)
+	}
+	_, _ = s.CacheTranslate(useCase2)
+
+	if *remoteTranslateCount != 2 {
+		t.Errorf("Expect 'TranslateCount' to be 2, but got %d, when called Translate(%v)",
+			*remoteTranslateCount, useCase2)
+	}
+
+	_, _ = s.CacheTranslate(useCase3)
+
+	if *remoteTranslateCount != 3 {
+		t.Errorf("Expect 'TranslateCount' to be 3, but got %d, when called Translate(%v), i.e. same `fromPhrase` but different language ",
+			*remoteTranslateCount, useCase3)
+	}
 }
 
+// TODO use Context for cache
 // TODO benchmark Golang's native cache and compare with a hash map

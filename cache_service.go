@@ -1,15 +1,23 @@
 package main
 
-import (
-	"context"
-	"golang.org/x/text/language"
-)
+func (s *Service) CacheTranslate(what CacheKey) (string, error) {
 
-func (s Service) CacheTranslate(from, to language.Tag, phrase string) {
+	if s.isCached(what) {
+		return s.getCachedUnchecked(what)
+	}
 
-	ctx := context.Background()
-	if isCached(from, to, phrase)
-		return GetCachedUnchecked(from, to, phrase)
-	return s.translator.Translate(ctx, language.English, language.Japanese, "test")
+	return s.translateAndSaveCache(what)
 }
 
+/*
+func (s *Service) CacheTranslate(what CacheKey) (string, error) {
+
+	value, ok := s.getCachedSafe(what)
+
+	if ok {
+		return value
+	}
+
+	return s.translateAndSaveCache(what)
+}
+*/
