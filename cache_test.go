@@ -30,7 +30,7 @@ func NewDummyService() *Service {
 
 	return &Service{
 		translator: t,
-		cache: make(map[RequestModel]string),
+		cache: newMapCacheRepository(),
 	}
 }
 
@@ -51,7 +51,7 @@ func TestCacheWhenCallingTwoTimes(t *testing.T){
 
 
 	_, _ = s.CacheTranslate(useCase1)
-	if !s.isCached(useCase1) {
+	if !s.cache.IsCached(useCase1) {
 		t.Errorf("Must cache %v", useCase1)
 	}
 

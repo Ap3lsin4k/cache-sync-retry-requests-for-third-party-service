@@ -39,5 +39,3 @@ Cover new functionality with tests.
 ## Source code
 
 translator.go and main.go should not be modified. Please use service.go and any new files for the solution.
-
-call Cache Service Translate and 

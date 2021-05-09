@@ -1,31 +1,20 @@
 package main
 
-
 import (
-	"golang.org/x/text/language"
-	"sync"
 	"time"
 )
 
 
 // User Story/Interactor/App specific business Rules
 
-type RequestModel struct {
-	from language.Tag
-	to language.Tag
-	fromPhrase string
-}
-
 
 
 // Service is a Translator user.
 type Service struct {
-	translator            Translator
-	cache                 map[RequestModel]string
+	translator          Translator // external API
+	cache	  			CacheRepository
 	// dedublicate service
-	busy                  bool
-	translatingInProgress setOfRequestModel
-	mutex       sync.Mutex
+	dedublicate			DedublicateService
 }
 
 
@@ -38,7 +27,8 @@ func NewService() *Service {
 
 	return &Service{
 		translator: t,
-		cache: make(map[RequestModel]string),
+		cache: newMapCacheRepository(),
+		dedublicate: newStandardDedublicateService(),
 	}
 }
 

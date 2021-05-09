@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TryTranslate(translate func() (string, error), delayBeforeReconnecting func(uint8) (time.Duration, error), attemptsLeftBeforePanicking uint8) (string, error) {
+func TryTranslateOrRetry(translate func() (string, error), delayBeforeReconnecting func(uint8) (time.Duration, error), attemptsLeftBeforePanicking uint8) (string, error) {
 	err := fmt.Errorf("attempted %d times but failed to connect", attemptsLeftBeforePanicking)
 	for attempts := uint8(0); attempts <= attemptsLeftBeforePanicking+2; attempts++ {
 		var translated = ""

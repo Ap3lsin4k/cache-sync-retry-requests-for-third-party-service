@@ -106,7 +106,7 @@ func TestNextDelayBeforeConnectingIsHigher(t *testing.T) {
 	}
 
 	expectAttemptsBeforePanicking := uint8(4)
-	_, _ = main.TryTranslate(translate, delayBeforeReconnecting, expectAttemptsBeforePanicking)
+	_, _ = main.TryTranslateOrRetry(translate, delayBeforeReconnecting, expectAttemptsBeforePanicking)
 
 	mySpy := s.translator
 	got := s.translator.CalledCounter

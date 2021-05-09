@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"time"
 )
 
 
@@ -13,15 +12,17 @@ var active in
 type setOfRequestModel map[RequestModel]in
 
 
-func (s *Service) TranslatePromise(ctx context.Context, howTranslate RequestModel) (string, error) {
-	log.Println("context", ctx.Value("whereami"), "BusyWith?", s.BusyWith(howTranslate))
-	if s.BusyWith(howTranslate) {
-		for s.BusyWith(howTranslate) {
-			time.Sleep(100 * time.Millisecond)
-		}
-		log.Println("context", ctx.Value("whereami"), "_BusyWith?", s.BusyWith(howTranslate))
+func (s *Service) TryTranslate(ctx context.Context, howTranslate RequestModel) (string, error) {
+	log.Println("context", ctx.Value("whereami"), "BusyWith?", s.dedublicate.BusyWith(howTranslate))
+	return s.TranslateOnce(ctx, howTranslate)
+}
 
-		val, ok := s.getCachedSafe(howTranslate)
+func (s *Service) TranslateOnce(ctx context.Context, howTranslate RequestModel) (string, error) {
+	if s.dedublicate.BusyWith(howTranslate) {
+		s.dedublicate.waitForResourceToBeAvailable(howTranslate)
+		log.Println("context", ctx.Value("whereami"), "_BusyWith?", s.dedublicate.BusyWith(howTranslate))
+
+		val, ok := s.cache.LoadCache(howTranslate)
 		log.Println("context", ctx.Value("whereami"), "getCached?", ok)
 		if ok {
 			return val, nil
@@ -29,45 +30,22 @@ func (s *Service) TranslatePromise(ctx context.Context, howTranslate RequestMode
 		// if cache is not set than we just try our own attempts
 	}
 
-	s.AddTranslateInProgress(howTranslate)
-	defer s.RemoveTranslateProcess(howTranslate)
+	s.dedublicate.AddTranslateInProgress(howTranslate)
+	defer s.dedublicate.RemoveTranslateProcess(howTranslate)
 
-	log.Println("context", ctx.Value("whereami"), "\tAddTranslateInProgress", s.BusyWith(howTranslate))
+	log.Println("context", ctx.Value("whereami"), "\tAddTranslateInProgress", s.dedublicate.BusyWith(howTranslate))
 
-
-	transl, err := s.translator.Translate(ctx, howTranslate.from, howTranslate.to, howTranslate.fromPhrase)
-	log.Println("context", ctx.Value("whereami"), "\ttranslator.Translate has been finished with (res:",transl,", err:",err,")")
-
-	if err != nil {
-		return "", err
-	}
-	s.Cache(howTranslate, transl)
-	log.Printf("context: %v\tresult \"%s\" has been cached: %v",
-		ctx.Value("whereami"), transl, s.isCached(howTranslate))
-
-
-	log.Println("context", ctx.Value("whereami"), "removed translate process, BusyWith:", s.BusyWith(howTranslate))
-
+	transl, err := s.mytranslateAndSaveCache(ctx, howTranslate)
 	return transl, err
 
 }
 
-func (s *Service) BusyWith(translationRequestID RequestModel) bool {
-	s.mutex.Lock()
-	_, exists := s.translatingInProgress[translationRequestID]
-	s.mutex.Unlock()
-	return exists
+type DedublicateService interface {
+	waitForResourceToBeAvailable(RequestModel)
+	BusyWith(RequestModel) bool
+	AddTranslateInProgress(RequestModel)
+	RemoveTranslateProcess(RequestModel)
 }
 
-func (s *Service) AddTranslateInProgress(translate RequestModel) {
-	s.mutex.Lock()
-	s.translatingInProgress[translate] = active
-	s.mutex.Unlock()
-}
 
-func (s *Service) RemoveTranslateProcess(translatingID RequestModel) {
-	s.mutex.Lock()
-	delete(s.translatingInProgress, translatingID)
-	s.mutex.Unlock()
-}
 

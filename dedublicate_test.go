@@ -26,32 +26,14 @@ func NewServiceNotFailingTranslator() *Service {
 func NewServiceFrom(t Translator) *Service{
     return &Service{
         translator: t,
-        cache: map[RequestModel]string{},
-        translatingInProgress: make(setOfRequestModel),
+        cache: newMapCacheRepository(),
+        dedublicate: newStandardDedublicateService(),
     }
 }
-
-
-func newServiceWithFailingTranslator() *Service {
-    t := newRandomTranslator(
-        100*time.Millisecond,
-        500*time.Millisecond,
-        1,
-    )
-
-    return &Service{
-        translator: t,
-        cache: map[RequestModel]string{},
-        translatingInProgress: make(setOfRequestModel),
-    }
-
-}
-
-
 
 func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorForOneButNoErrorForTheOther(t *testing.T) {
     ctx := context.Background()
-    commonCache := map[RequestModel]string{}
+    commonCache := newMapCacheRepository()
 
     stubTranslator := newRandomTranslator(
         100*time.Millisecond,
@@ -64,12 +46,12 @@ func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorFor
         500*time.Millisecond,
         1,
     )
-    commonTranslationsInProgress := make(setOfRequestModel)
+    commonDedublicate := newStandardDedublicateService()
 
     service2 := &Service{
         translator: stubTranslator,
         cache: commonCache,
-        translatingInProgress: commonTranslationsInProgress,
+        dedublicate: commonDedublicate,
     }
 
 
@@ -77,7 +59,7 @@ func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorFor
     failingService := &Service{
         translator: failingTr,
         cache: commonCache,
-        translatingInProgress: commonTranslationsInProgress,
+        dedublicate: commonDedublicate,
     }
     failingService.cache = service2.cache
     if service2.translator.(*randomTranslator).errorProb !=0 {
@@ -108,7 +90,7 @@ func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorFor
         log.Println("FailingService is the first service to run")
         wg.Done()
         wgGlobal.Add(1)
-        result1, err1 = failingService.TranslatePromise(ctx1, requestModel)
+        result1, err1 = failingService.TranslateOnce(ctx1, requestModel)
         wgGlobal.Done()
     }()
     wg.Wait()
@@ -116,7 +98,7 @@ func TestDeduplicateWithSameParametersNotPossibleWhenTheTranslateReturnsErrorFor
     // failingService must be the first service2 to run
     go func() {
         log.Println("service2 is sequentially the second service to run")
-        result2, err2 = service2.TranslatePromise(ctx2, requestModel)
+        result2, err2 = service2.TranslateOnce(ctx2, requestModel)
         wgGlobal.Done()
     }()
 
@@ -150,7 +132,7 @@ func TestDeduplicateServiceWhenTranslationServiceIsStable(t *testing.T) {
 
 
     t.Run("blackbox call simulatiously with same parameters", func(t *testing.T) {
-        if service.BusyWith(howTranslate) {
+        if service.dedublicate.BusyWith(howTranslate) {
             t.Errorf("Expect BusyWith(%v) be false by default", howTranslate)
         }
 
@@ -158,23 +140,23 @@ func TestDeduplicateServiceWhenTranslationServiceIsStable(t *testing.T) {
         wg.Add(1)
         var result1, result2 string
         go func() {
-            result1, _ = service.TranslatePromise(ctx1, howTranslate)
+            result1, _ = service.TranslateOnce(ctx1, howTranslate)
             wg.Done()
         }()
 
         wg.Add(1)
         go func() {
-            result2, _ = service.TranslatePromise(ctx2, howTranslate)
+            result2, _ = service.TranslateOnce(ctx2, howTranslate)
             wg.Done()
         }()
         time.Sleep(5 * time.Millisecond)
-        if !service.BusyWith(howTranslate) {
+        if !service.dedublicate.BusyWith(howTranslate) {
             t.Errorf("Expect inProgress to be true while executing Translation(%v)"+
                 "try increasing time.Sleep delay before checking", howTranslate)
         }
         wg.Wait()
 
-        if service.BusyWith(howTranslate) {
+        if service.dedublicate.BusyWith(howTranslate) {
             t.Errorf("Expect inProgress to be false on fished Translation")
         }
 
@@ -212,14 +194,14 @@ func TestNotDedublicateSimultaneousQueriesForDifferentParameters(t *testing.T) {
     var wg sync.WaitGroup
     wg.Add(1)
     go func () {
-        result1, err1 = s.TranslatePromise(ctx, useCase1)
+        result1, err1 = s.TranslateOnce(ctx, useCase1)
         fmt.Println(result1, err1)
         wg.Done()
     }()
 
     wg.Add(1)
     go func() {
-        result2, err2 = s.TranslatePromise(ctx, useCase2)
+        result2, err2 = s.TranslateOnce(ctx, useCase2)
         wg.Done()
     }()
 
